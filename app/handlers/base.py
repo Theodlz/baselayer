@@ -1,8 +1,10 @@
 import inspect
 import time
 import uuid
-from collections import defaultdict
+from contextlib import contextmanager
 from json.decoder import JSONDecodeError
+
+import social_tornado.handlers as psa_handlers
 
 # The Python Social Auth base handler gives us:
 #   user_id, get_current_user, login_user
@@ -10,7 +12,7 @@ from json.decoder import JSONDecodeError
 # `get_current_user` is needed by tornado.authentication,
 # and provides a cached version, `current_user`, that should
 # be used to look up the logged in user.
-import social_tornado.handlers as psa_handlers
+import sqlalchemy
 import tornado.escape
 from tornado.log import app_log
 from tornado.web import RequestHandler
@@ -23,7 +25,7 @@ from ..custom_exceptions import AccessError
 from ..env import load_env
 from ..flow import Flow
 from ..json_util import to_json
-from ..models import DBSession, User, handle_inaccessible, session_context_id
+from ..models import DBSession, User, VerifiedSession, bulk_verify, session_context_id
 
 env, cfg = load_env()
 log = make_log("basehandler")
@@ -51,18 +53,23 @@ class PSABaseHandler(RequestHandler):
         return self.get_secure_cookie("user_id")
 
     def get_current_user(self):
-        user_id = self.user_id()
+        if self.user_id() is None:
+            return
+        user_id = int(self.user_id())
         oauth_uid = self.get_secure_cookie("user_oauth_uid")
         if user_id and oauth_uid:
-            user = User.query.get(int(user_id))
-            if user is None:
-                return
-            sa = user.social_auth.first()
-            if sa is None:
-                # No SocialAuth entry; probably machine generated user
-                return user
-            if sa.uid.encode("utf-8") == oauth_uid:
-                return user
+            with DBSession() as session:
+                user = session.scalars(
+                    sqlalchemy.select(User).where(User.id == user_id)
+                ).first()
+                if user is None:
+                    return
+                sa = user.social_auth.first()
+                if sa is None:
+                    # No SocialAuth entry; probably machine generated user
+                    return user
+                if sa.uid.encode("utf-8") == oauth_uid:
+                    return user
 
     def login_user(self, user):
         self.set_secure_cookie("user_id", str(user.id))
@@ -100,61 +107,43 @@ class PSABaseHandler(RequestHandler):
         DBSession.remove()
 
 
-def bulk_verify(mode, collection, accessor):
-    """Vectorized permission check for a heterogeneous set of records. If an
-    access leak is detected, it will be handled according to the `security`
-    section of the application's configuration.
-
-    Parameters
-    ----------
-    mode: str
-        The access mode to check. Can be create, read, update, or delete.
-    collection: collection of `baselayer.app.models.Base`.
-        The records to check. These records will be grouped by type, and
-        a single database query will be issued to check access for each
-        record type.
-    accessor: baselayer.app.models.User or baselayer.app.models.Token
-        The user or token to check.
-    """
-
-    grouped_collection = defaultdict(list)
-    for row in collection:
-        grouped_collection[type(row)].append(row)
-
-    # check all rows of the same type with a single database query
-    for record_cls, collection in grouped_collection.items():
-        collection_ids = {record.id for record in collection}
-
-        # vectorized query for ids of rows in the session that
-        # are accessible
-        accessible_row_ids_sq = record_cls.query_records_accessible_by(
-            accessor, mode=mode, columns=[record_cls.id]
-        ).subquery()
-
-        inaccessible_row_ids = (
-            DBSession()
-            .query(record_cls.id)
-            .outerjoin(
-                accessible_row_ids_sq, record_cls.id == accessible_row_ids_sq.c.id
-            )
-            .filter(record_cls.id.in_(collection_ids))
-            .filter(accessible_row_ids_sq.c.id.is_(None))
-        )
-
-        # compare the accessible ids with the ids that are in the session
-        inaccessible_row_ids = {id for id, in inaccessible_row_ids}
-
-        # if any of the rows in the session are inaccessible, handle
-        if len(inaccessible_row_ids) > 0:
-            handle_inaccessible(mode, inaccessible_row_ids, record_cls, accessor)
-
-
 # Monkey-patch in each method of social_tornado.handlers.BaseHandler
 for (name, fn) in inspect.getmembers(PSABaseHandler, predicate=inspect.isfunction):
     setattr(psa_handlers.BaseHandler, name, fn)
 
 
 class BaseHandler(PSABaseHandler):
+    @contextmanager
+    def Session(self):
+        """
+        Generate a scoped session that also has knowledge
+        of the current user, so when commit() is called on it
+        it will also verify that all rows being committed
+        are accessible to the user.
+        The current user is taken from the handler's `current_user`.
+        This is a shortcut method to `models.Session`
+        that saves the need to manually input the user object.
+
+        Parameters
+        ----------
+        verify : boolean
+            if True (default), will call the functions
+            `verify()` and whenever `commit()` is called.
+
+        Returns
+        -------
+        A scoped session object that can be used in a context
+        manager to access the database. If auto verify is enabled,
+        will use the current user given to apply verification
+        before every commit.
+
+        """
+        with VerifiedSession(self.current_user) as session:
+            # must merge the user object with the current session
+            # ref: https://docs.sqlalchemy.org/en/14/orm/session_basics.html#adding-new-or-existing-items
+            session.add(self.current_user)
+            yield session
+
     def verify_permissions(self):
         """Check that the current user has permission to create, read,
         update, or delete rows that are present in the session. If not,
