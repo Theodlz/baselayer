@@ -35,5 +35,5 @@ def make_app():
 
 if __name__ == "__main__":
     app = make_app()
-    app.listen(cfg["ports.status"])
+    app.listen(cfg["ports.status_server"])
     tornado.ioloop.IOLoop.current().start()

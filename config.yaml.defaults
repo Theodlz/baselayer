@@ -112,16 +112,24 @@ log:
     # if True, enable connection pool logging
     database_pool: False
 
+hosts:
+    websocket: localhost
+    fake_oauth2: localhost
+    app_internal: localhost
+    app: localhost
+    migration_manager: localhost
+    status_server: localhost
+
 ports:
     websocket: 64000
-    fake_oauth: 63000
+    fake_oauth2: 63000
     app: 5000
     app_http_proxy: 5001
     app_internal: 65000  # nginx forwards this port to ports:app
     dask: 63500
     websocket_path_in: 'ipc://run/message_flow_in'
     websocket_path_out: 'ipc://run/message_flow_out'
-    status: 64500
+    status_server: 64500
     migration_manager: 64501
 
 external_logging:

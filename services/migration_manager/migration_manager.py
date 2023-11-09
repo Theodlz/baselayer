@@ -136,7 +136,8 @@ if __name__ == "__main__":
 
     migration_manager = make_app()
 
+    address = "0.0.0.0"
     port = cfg["ports.migration_manager"]
-    migration_manager.listen(port)
+    migration_manager.listen(port, address=address)
     log(f"Listening on port {port}")
     tornado.ioloop.IOLoop.current().start()

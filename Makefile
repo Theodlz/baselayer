@@ -40,10 +40,19 @@ webpack = npx webpack
 help:
 	@python ./baselayer/tools/makefile_to_help.py $(MAKEFILE_LIST)
 
-dependencies: README.md
-	@cd baselayer && ./tools/check_app_environment.py
-	@PYTHONPATH=. python baselayer/tools/pip_install_requirements.py baselayer/requirements.txt requirements.txt
+dependencies_python_baselayer: ## Install Python dependencies for baselayer.
+	@PYTHONPATH=. python baselayer/tools/pip_install_requirements.py baselayer/requirements.txt
+
+dependencies_python: dependencies_python_baselayer ## Install Python dependencies.
+	@PYTHONPATH=. python baselayer/tools/pip_install_requirements.py requirements.txt
+
+dependencies_js: ## Install JavaScript dependencies.
 	@./baselayer/tools/silent_monitor.py baselayer/tools/check_js_deps.sh
+
+dependencies: README.md 
+	@cd baselayer && ./tools/check_app_environment.py $(FLAGS)
+dependencies: dependencies_python dependencies_js
+
 
 db_init: ## Initialize database and models.
 db_init: dependencies
@@ -71,6 +80,10 @@ fill_conf_values:
 
 system_setup: | paths dependencies fill_conf_values service_setup
 
+system_setup_baselayer: | paths dependencies_python_baselayer fill_conf_values service_setup
+
+system_setup_python_only: | paths dependencies_python fill_conf_values service_setup
+
 service_setup:
 	@PYTHONPATH=. python ./baselayer/tools/setup_services.py $(FLAGS)
 
@@ -81,6 +94,25 @@ log: paths
 run: ## Start the web application.
 run: FLAGS:=$(FLAGS) --debug
 run: system_setup
+	@echo
+	$(call LOG, Starting micro-services)
+	@echo
+	@echo " - Run \`make log\` in another terminal to view logs"
+	@echo " - Run \`make monitor\` in another terminal to restart services"
+	@echo
+	@echo "The server is in debug mode:"
+	@echo
+	@echo "  JavaScript and Python files will be reloaded upon change."
+	@echo
+	@export FLAGS="$(FLAGS)" && \
+	$(ENV_SUMMARY) && echo && \
+	echo "Press Ctrl-C to abort the server" && \
+	echo && \
+	$(SUPERVISORD)
+
+run_baselayer_service: ## Start a baselayer microservice
+run_baselayer_service: FLAGS:=$(FLAGS) --debug
+run_baselayer_service: system_setup_baselayer
 	@echo
 	$(call LOG, Starting micro-services)
 	@echo

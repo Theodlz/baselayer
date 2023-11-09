@@ -182,7 +182,12 @@ if __name__ == "__main__":
     log(f"Broadcasting {LOCAL_OUTPUT} to all websockets")
     stream = zmqstream.ZMQStream(sub)
     WebSocket.install_stream(stream)
-    stream.on_recv(WebSocket.broadcast)
+
+    # debug only, to remove before merging anything
+    def callback(msg: list):
+        log(f"Received message on {LOCAL_OUTPUT}: {str(msg)}")
+        WebSocket.broadcast(msg)
+    stream.on_recv(callback)
 
     server = web.Application(
         [

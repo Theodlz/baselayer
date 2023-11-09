@@ -50,19 +50,19 @@ http {
   limit_req_zone $limit_key zone=custom_rate_limit:1m rate={{ server.rate_limit }}r/s;
 
   upstream websocket_server {
-    server localhost:{{ ports.websocket }};
+    server {{ hosts.websocket }}:{{ ports.websocket }};
   }
 
   upstream fakeoauth_server {
-    server localhost:{{ ports.fake_oauth2 }};
+    server {{ hosts.fake_oauth2 }}:{{ ports.fake_oauth2 }};
   }
 
   upstream frontend {
     least_conn;
-    {% for p in range(server.processes) -%}
-      server 127.0.0.1:{{ ports.app_internal + p }} fail_timeout={{ server.fail_timeout }}s;
+    {% for p in range(server.pods_processes) -%}
+        server app-{{ p }}.app-service.default.svc.cluster.local:{{ ports.app_internal }} fail_timeout={{ server.fail_timeout }}s;
     {% endfor %}
-    server 127.0.0.1:{{ ports.status_server }} backup max_fails=0;
+    server {{ hosts.status_server }}:{{ ports.status_server }} backup max_fails=0;
   }
 
   # Only a subset of processes are available for token authenticated API
@@ -70,10 +70,10 @@ http {
   # hit by API requests, the frontend remains responsive.
   upstream api {
     least_conn;
-    {% for p in range(server.dedicated_frontend_processes, [server.processes, server.dedicated_frontend_processes + 1] | max) -%}
-      server 127.0.0.1:{{ ports.app_internal + p }} fail_timeout={{ server.fail_timeout }}s;
+    {% for p in range(server.dedicated_frontend_processes, [server.pods_processes, server.dedicated_frontend_processes + 1] | max) -%}
+        server app-{{ p }}.app-service.default.svc.cluster.local:{{ ports.app_internal }} fail_timeout={{ server.fail_timeout }}s;
     {% endfor %}
-    server 127.0.0.1:{{ ports.status_server }} backup max_fails=0;
+    server {{ hosts.status_server }}:{{ ports.status_server }} backup max_fails=0;
   }
 
   # See http://nginx.org/en/docs/http/websocket.html
@@ -108,12 +108,7 @@ http {
   log_format elb_log '$remote_addr - $remote_user [$trunc_authorization] [$time_local] ' '"$request" $status $body_bytes_sent rl=$request_length "$http_referer" ' '"$http_user_agent"';
 
   server {
-    {% if env.debug %}
-    listen 127.0.0.1:{{ ports.app }};
-    {% else %}
     listen {{ ports.app }};
-    listen {{ ports.app_http_proxy }} proxy_protocol; # This is for AWS Elastic Load Balancer
-    {% endif %}
     client_max_body_size {{ server.max_body_size }}M;
 
     {% if server.ssl_use_certificate %}

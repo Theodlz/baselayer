@@ -11,7 +11,7 @@ def config_print(field, value):
 env, cfg = load_env()
 
 print("=" * 50)
-config_print("Server at", f"http://localhost:{cfg['ports.app']}")
+config_print("Server at", f"http://{cfg['hosts.app']}:{cfg['ports.app']}")
 config_print(
     "Database at",
     f"{cfg['database.host']}:{cfg['database.port']} ({cfg['database.database']})",

@@ -41,4 +41,7 @@ class Flow:
                 {"user_id": user_id, "actionType": action_type, "payload": payload}
             ),
         ]
-        self._bus.send_multipart([m.encode("utf-8") for m in message])
+        # debug only, to remove before merging anything
+        result: zmq.sugar.tracker.MessageTracker = self._bus.send_multipart([m.encode("utf-8") for m in message], track=True, copy=False)
+        result.wait()
+        log(f"Pushed action {action_type} to user {user_id} with result {result.done}")

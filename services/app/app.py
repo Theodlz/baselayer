@@ -4,6 +4,7 @@ import time
 import requests
 import tornado.ioloop
 import tornado.log
+import tornado.web
 
 from baselayer.app.env import load_env, parser
 from baselayer.log import make_log
@@ -30,10 +31,11 @@ baselayer_settings["cookie_secret"] = cfg["app.secret_key"]
 baselayer_settings["autoreload"] = env.debug
 
 
-def migrated_db(migration_manager_port):
+def migrated_db(migration_manager_host, migration_manager_port):
+    host = migration_manager_host
     port = migration_manager_port
     try:
-        r = requests.get(f"http://localhost:{port}")
+        r = requests.get(f"http://{host}:{port}")
         status = r.json()
     except requests.exceptions.RequestException:
         log(f"Could not connect to migration manager on port [{port}]")
@@ -44,9 +46,10 @@ def migrated_db(migration_manager_port):
 
 # Before creating the app, ask migration_manager whether the DB is ready
 log("Verifying database migration status")
+host = cfg["hosts.migration_manager"]
 port = cfg["ports.migration_manager"]
 timeout = 1
-while not migrated_db(port):
+while not migrated_db(host, port):
     log(f"Database not migrated, or could not verify; trying again in {timeout}s")
     time.sleep(timeout)
     timeout = min(timeout * 2, 30)
@@ -55,7 +58,7 @@ while not migrated_db(port):
 module, app_factory = app_factory.rsplit(".", 1)
 app_factory = getattr(importlib.import_module(module), app_factory)
 
-app = app_factory(
+app: tornado.web.Application = app_factory(
     cfg,
     baselayer_handlers,
     baselayer_settings,
@@ -66,7 +69,7 @@ app.cfg = cfg
 
 port = cfg["ports.app_internal"] + (env.process or 0)
 
-address = "127.0.0.1"
+address = "0.0.0.0"
 app.listen(port, xheaders=True, address=address)
 
 log(f"Listening on {address}:{port}")

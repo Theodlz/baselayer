@@ -35,6 +35,6 @@ handlers = [
     ("/fakeoauth2/token", FakeGoogleOAuth2TokenHandler),
 ]
 app = tornado.web.Application(handlers)
-app.listen(cfg["ports.fake_oauth"])
+app.listen(cfg["ports.fake_oauth2"])
 
 tornado.ioloop.IOLoop.current().start()
