@@ -174,7 +174,7 @@ def bulk_verify(mode, collection, accessor):
         ).subquery()
 
         inaccessible_row_ids = (
-            HandlerSession()
+            ContextSession()
             .scalars(
                 sa.select(record_cls.id)
                 .outerjoin(
@@ -295,6 +295,13 @@ def init_db(
 
     return engine
 
+def ContextSession():
+    # check if there is a request_id context variable available
+    # if not, return a thread session, otherwise return a handler session
+    try:
+        return HandlerSession() if session_context_id.get() is not None else ThreadSession()
+    except LookupError:
+        return ThreadSession()
 
 class SlugifiedStr(sa.types.TypeDecorator):
     """Slugified string"""
@@ -500,8 +507,8 @@ class Public(UserAccessControl):
         """
         # return only selected columns if requested
         if columns is not None:
-            return HandlerSession().query(*columns).select_from(cls)
-        return HandlerSession().query(cls)
+            return ContextSession().query(*columns).select_from(cls)
+        return ContextSession().query(cls)
 
     def select_accessible_rows(self, cls, user_or_token, columns=None):
         """Construct a Select object that, when executed, returns the rows of a
@@ -593,9 +600,9 @@ class AccessibleIfUserMatches(UserAccessControl):
 
         # return only selected columns if requested
         if columns is not None:
-            query = HandlerSession().query(*columns).select_from(cls)
+            query = ContextSession().query(*columns).select_from(cls)
         else:
-            query = HandlerSession().query(cls)
+            query = ContextSession().query(cls)
 
         # traverse the relationship chain via sequential JOINs
         for relationship_name in self.relationship_names:
@@ -757,9 +764,9 @@ class AccessibleIfRelatedRowsAreAccessible(UserAccessControl):
 
         # return only selected columns if requested
         if columns is None:
-            base = HandlerSession().query(cls)
+            base = ContextSession().query(cls)
         else:
-            base = HandlerSession().query(*columns).select_from(cls)
+            base = ContextSession().query(*columns).select_from(cls)
 
         # ensure the target class has all the relationships referred to
         # in this instance
@@ -944,9 +951,9 @@ class ComposedAccessControl(UserAccessControl):
 
         # retrieve specified columns if requested
         if columns is not None:
-            query = HandlerSession().query(*columns).select_from(cls)
+            query = ContextSession().query(*columns).select_from(cls)
         else:
-            query = HandlerSession().query(cls)
+            query = ContextSession().query(cls)
 
         # keep track of columns that will be null in the case of an unsuccessful
         # match for OR logic.
@@ -1098,12 +1105,12 @@ class Restricted(UserAccessControl):
         # otherwise, all records are inaccessible
         if columns is not None:
             return (
-                HandlerSession()
+                ContextSession()
                 .query(*columns)
                 .select_from(cls)
                 .filter(sa.literal(False))
             )
-        return HandlerSession().query(cls).filter(sa.literal(False))
+        return ContextSession().query(cls).filter(sa.literal(False))
 
     def select_accessible_rows(self, cls, user_or_token, columns=None):
         """Construct a Select object that, when executed, returns the rows of a
@@ -1328,7 +1335,7 @@ class BaseMixin:
 
         # Query for the value of the access_func for this particular record and
         # return the result.
-        result = HandlerSession().execute(stmt).scalar_one() > 0
+        result = ContextSession().execute(stmt).scalar_one() > 0
         if result is None:
             result = False
 
@@ -1378,7 +1385,7 @@ class BaseMixin:
 
         # TODO: vectorize this
         for pk in standardized:
-            instance = HandlerSession().query(cls).options(options).get(pk.item())
+            instance = ContextSession().query(cls).options(options).get(pk.item())
             if instance is None or not instance.is_accessible_by(
                 user_or_token, mode=mode
             ):
@@ -1492,7 +1499,7 @@ class BaseMixin:
         standardized = np.atleast_1d(id_or_list)
         result = []
 
-        with HandlerSession() as session:
+        with ContextSession() as session:
             # TODO: vectorize this
             for pk in standardized:
                 if options:
@@ -1544,7 +1551,7 @@ class BaseMixin:
             If columns is specified, will return a list of tuples
             containing the data from each column requested.
         """
-        with HandlerSession() as session:
+        with ContextSession() as session:
             stmt = cls.select(user_or_token, mode, options, columns)
             values = session.scalars(stmt).all()
 
@@ -1633,8 +1640,8 @@ class BaseMixin:
     def to_dict(self):
         """Serialize this object to a Python dictionary."""
         if sa.inspection.inspect(self).expired:
-            self = HandlerSession().merge(self)
-            HandlerSession().refresh(self)
+            self = ContextSession().merge(self)
+            ContextSession().refresh(self)
         return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
 
     @classmethod
@@ -1657,7 +1664,7 @@ class BaseMixin:
         obj : baselayer.app.models.Base
            The requested entity.
         """
-        obj = HandlerSession().query(cls).options(options).get(ident)
+        obj = ContextSession().query(cls).options(options).get(ident)
 
         if obj is not None and not obj.is_readable_by(user_or_token):
             raise AccessError("Insufficient permissions.")
@@ -1681,10 +1688,10 @@ class BaseMixin:
         raise NotImplementedError("Ownership logic is application-specific")
 
     @classmethod
-    def create_or_get(cls, id):
+    def create_or_get(cls, id, session=None):
         """Return a new `cls` if an instance with the specified primary key
         does not exist, else return the existing instance."""
-        obj = HandlerSession().query(cls).get(id)
+        obj = session.get(ACL, id)
         if obj is not None:
             return obj
         else:
@@ -1901,7 +1908,7 @@ class User(Base):
     role_ids = association_proxy(
         "roles",
         "id",
-        creator=lambda r: HandlerSession().query(Role).get(r),
+        creator=lambda r: ContextSession().query(Role).get(r),
     )
     tokens = relationship(
         "Token",
@@ -2007,7 +2014,7 @@ class Token(Base):
         lazy="selectin",
     )
     acl_ids = association_proxy(
-        "acls", "id", creator=lambda acl: HandlerSession().query(ACL).get(acl)
+        "acls", "id", creator=lambda acl: ContextSession().query(ACL).get(acl)
     )
     permissions = acl_ids
 
