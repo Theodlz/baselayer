@@ -295,13 +295,17 @@ def init_db(
 
     return engine
 
-def ContextSession():
+def ContextSession(class_only=False):
     # check if there is a request_id context variable available
     # if not, return a thread session, otherwise return a handler session
     try:
-        return HandlerSession() if session_context_id.get() is not None else ThreadSession()
+        session = HandlerSession if session_context_id.get() is not None else ThreadSession
     except LookupError:
-        return ThreadSession()
+        session = ThreadSession
+    if class_only:
+        return session
+    else:
+        return session()
 
 class SlugifiedStr(sa.types.TypeDecorator):
     """Slugified string"""
@@ -1598,7 +1602,7 @@ class BaseMixin:
             stmt = stmt.options(option)
         return stmt
 
-    query = HandlerSession.query_property()
+    query = ContextSession(class_only=True).query_property()
 
     id = sa.Column(
         sa.Integer,
