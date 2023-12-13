@@ -21,11 +21,11 @@ def status(message):
     else:
         print(f"\r[✓] {message}")
     finally:
-        models.HandlerSession().commit()
+        models.ThreadSession().commit()
 
 
 def drop_tables():
-    engine = models.HandlerSession.engine
+    engine = models.ThreadSession.engine
     print(f"Dropping tables on database {engine.url.database}")
     meta = sa.MetaData()
     meta.reflect(bind=engine)
@@ -52,7 +52,7 @@ def create_tables(retry=5, add=True):
 
     for i in range(1, retry + 1):
         try:
-            engine = models.HandlerSession.engine
+            engine = models.ThreadSession.engine
             print(f"Creating tables on database {engine.url.database}")
             models.Base.metadata.create_all(engine)
 
