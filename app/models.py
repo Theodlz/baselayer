@@ -2018,7 +2018,7 @@ class Token(Base):
         lazy="selectin",
     )
     acl_ids = association_proxy(
-        "acls", "id", creator=lambda acl: ContextSession().query(ACL).get(acl)
+        "acls", "id", creator=lambda acl: ContextSession().scalar(sa.select(ACL).where(ACL.id == acl))
     )
     permissions = acl_ids
 

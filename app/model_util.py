@@ -10,20 +10,6 @@ from baselayer.app import models
 from . import psa  # noqa: F401
 
 
-@contextmanager
-def status(message):
-    print(f"[·] {message}", end="")
-    try:
-        yield
-    except:  # noqa: E722
-        print(f"\r[✗] {message}")
-        raise
-    else:
-        print(f"\r[✓] {message}")
-    finally:
-        models.ThreadSession().commit()
-
-
 def drop_tables():
     engine = models.ThreadSession.engine
     print(f"Dropping tables on database {engine.url.database}")
