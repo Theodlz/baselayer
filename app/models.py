@@ -1909,11 +1909,7 @@ class User(Base):
         doc="The roles assumed by this user.",
         lazy="selectin",
     )
-    role_ids = association_proxy(
-        "roles",
-        "id",
-        creator=lambda r: ContextSession().query(Role).get(r),
-    )
+
     tokens = relationship(
         "Token",
         cascade="save-update, merge, refresh-expire, expunge",
@@ -2017,10 +2013,11 @@ class Token(Base):
         doc="The ACLs granted to the Token.",
         lazy="selectin",
     )
-    acl_ids = association_proxy(
-        "acls", "id", creator=lambda acl: ContextSession().scalar(sa.select(ACL).where(ACL.id == acl))
-    )
-    permissions = acl_ids
+
+    @property
+    def permissions(self):
+        """List of the names of all of the token's ACLs."""
+        return [acl.id for acl in self.acls]
 
     name = sa.Column(
         sa.String,
