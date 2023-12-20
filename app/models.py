@@ -12,7 +12,6 @@ import sqlalchemy as sa
 from slugify import slugify
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import declarative_base, relationship, scoped_session, sessionmaker
 from sqlalchemy_utils import EmailType, PhoneNumberType
@@ -295,17 +294,21 @@ def init_db(
 
     return engine
 
+
 def ContextSession(class_only=False):
     # check if there is a request_id context variable available
     # if not, return a thread session, otherwise return a handler session
     try:
-        session = HandlerSession if session_context_id.get() is not None else ThreadSession
+        session = (
+            HandlerSession if session_context_id.get() is not None else ThreadSession
+        )
     except LookupError:
         session = ThreadSession
     if class_only:
         return session
     else:
         return session()
+
 
 class SlugifiedStr(sa.types.TypeDecorator):
     """Slugified string"""
