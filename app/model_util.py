@@ -2,7 +2,6 @@ import time
 from contextlib import contextmanager
 
 import sqlalchemy as sa
-
 from baselayer.app import models
 
 # Do not remove this "unused" import; it is required for
