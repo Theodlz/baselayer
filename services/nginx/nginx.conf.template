@@ -18,7 +18,8 @@ http {
              application/json
              application/x-javascript
              application/xml
-             text/javascript;
+             text/javascript
+             application/javascript;
 
   # Only retry if there was a communication error, not a timeout
   # on the Tornado server (to avoid propagating "queries of death"
@@ -111,7 +112,7 @@ http {
     {% if env.debug %}
     listen 127.0.0.1:{{ ports.app }};
     {% else %}
-    {% if server.ssl %}
+    {% if server.ssl_certificate %}
     listen {{ ports.app }} ssl;
     {% else %}
     listen {{ ports.app }};
@@ -120,7 +121,7 @@ http {
     {% endif %}
     client_max_body_size {{ server.max_body_size }}M;
 
-    {% if server.ssl_use_certificate %}
+    {% if server.ssl_certificate %}
     ssl_certificate {{ server.ssl_certificate }};
     ssl_certificate_key {{ server.ssl_certificate_key }};
     {% endif %}
