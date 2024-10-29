@@ -146,6 +146,11 @@ test_report: ## Print report on failed tests
 test_report:
 	@PYTHONPATH='.' baselayer/tools/junitxml_report.py test-results/junit.xml
 
+load_demo_data: ## Import example dataset
+load_demo_data: FLAGS := $(if $(FLAGS),$(FLAGS),--config=config.yaml)
+load_demo_data: | dependencies
+	@PYTHONPATH=. python tools/data_loader.py data/db_demo.yaml $(FLAGS)
+
 # Lint targets
 lint-install: ## Install ESLint and a git pre-commit hook.
 lint-install: cp-lint-yaml lint-githook

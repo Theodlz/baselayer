@@ -14,6 +14,7 @@ node_modules/
 *.pyc
 doc/_build
 bun.lockb
+config.yaml
 
 # These are built from templates
 conf/supervisor/supervisor.conf

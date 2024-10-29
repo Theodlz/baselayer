@@ -1,0 +1,49 @@
+groups:
+  - name: Program A
+    =id: program_A
+  - name: Program B
+    =id: program_B
+
+user:
+  - username: testadmin
+    roles:
+      - Super admin
+    first_name: Jada
+    last_name: Lilleboe
+    =id: testadmin
+  - username: groupadmin
+    roles:
+      - Group admin
+    first_name: Theo
+    last_name: du Laz
+    =id: groupadmin
+  - username: fulluser
+    roles:
+      - Full user
+    =id: fulluser
+    first_name: Michael
+    last_name: Coughlin
+  - username: viewonlyuser
+    roles:
+      - View only
+    =id: viewonlyuser
+    first_name: Guy
+    last_name: Nir
+
+groups/=program_A/users:
+  - userID: =testadmin
+    admin: true
+  - userID: =groupadmin
+    admin: true
+  - userID: =fulluser
+    admin: false
+
+groups/=program_B/users:
+  - userID: =testadmin
+    admin: true
+  - userID: =groupadmin
+    admin: true
+  - userID: =viewonlyuser
+    admin: false
+  - userID: =fulluser
+    admin: false
