@@ -141,6 +141,4 @@ def load_config(config_files=[], load_services_configs=True):
 
     cfg = Config(all_configs, verbose=True)
 
-    cfg.show()
-
     return cfg
