@@ -21,3 +21,4 @@ python-slugify>=4.0.1
 numpy>=1.21.4
 webdriver-manager>=4.0.1
 tomli; python_version < '3.11'
+pytest-xdist

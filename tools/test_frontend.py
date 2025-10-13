@@ -94,6 +94,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--headless", action="store_true", help="Run browser headlessly"
     )
+    parser.add_argument(
+        "--n_processes",
+        type=int,
+        default=os.environ.get("PYTEST_N_PROCESSES", 1),
+        help="Number of parallel processes to use",
+    )
     args = parser.parse_args()
 
     # Initialize the test database connection
@@ -140,7 +146,8 @@ if __name__ == "__main__":
 
         log(f"Launching pytest on {test_spec}...\n")
         p = subprocess.run(
-            f"python -m pytest -s -v {xml} {test_spec} " f"{RAND_ARGS}",
+            f"python -m pytest -n {args.n_processes} -s -v {xml} {test_spec} "
+            f"{RAND_ARGS}",
             shell=True,
         )
         if p.returncode != 0:
