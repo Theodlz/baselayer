@@ -77,9 +77,13 @@ server:
     # You need to have Google+ API enabled; it takes a few minutes to activate.
     auth:
         debug_login: False
-        google_oauth2_key:
-        google_oauth2_secret:
-        google_oauth2_timeout: 15
+        providers:
+          - backend: social_core.backends.google.GoogleOAuth2
+            key:
+            secret:
+            timeout: 15
+            display_name: Google
+        default_provider_backend: social_core.backends.google.GoogleOAuth2
 
 
 services:

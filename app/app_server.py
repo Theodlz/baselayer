@@ -22,25 +22,55 @@ settings = {
     "SOCIAL_AUTH_USER_MODEL": "baselayer.app.models.User",
     "SOCIAL_AUTH_STORAGE": "baselayer.app.psa.TornadoStorage",
     "SOCIAL_AUTH_STRATEGY": "baselayer.app.psa.TornadoStrategy",
-    "SOCIAL_AUTH_AUTHENTICATION_BACKENDS": (
-        "social_core.backends.google.GoogleOAuth2",
-    ),
+    # "SOCIAL_AUTH_AUTHENTICATION_BACKENDS": (
+    #     "social_core.backends.google.GoogleOAuth2",
+    # ),
     "SOCIAL_AUTH_LOGIN_URL": "/",
     "SOCIAL_AUTH_LOGIN_REDIRECT_URL": "/",  # on success
     "SOCIAL_AUTH_LOGIN_ERROR_URL": "/login-error/",
     "SOCIAL_AUTH_USER_FIELDS": ["username"],
     "SOCIAL_AUTH_USERNAME_IS_FULL_EMAIL": True,
     "SOCIAL_AUTH_SESSION_EXPIRATION": True,
-    "SOCIAL_AUTH_GOOGLE_OAUTH2_KEY": cfg["server.auth.google_oauth2_key"],
-    "SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET": cfg["server.auth.google_oauth2_secret"],
-    "SOCIAL_AUTH_REDIRECT_IS_HTTPS": cfg["server.ssl"],
-    "SOCIAL_AUTH_URLOPEN_TIMEOUT": cfg["server.auth.google_oauth2_timeout"],
+    # "SOCIAL_AUTH_GOOGLE_OAUTH2_KEY": cfg["server.auth.google_oauth2_key"],
+    # "SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET": cfg["server.auth.google_oauth2_secret"],
+    # "SOCIAL_AUTH_REDIRECT_IS_HTTPS": cfg["server.ssl"],
+    # "SOCIAL_AUTH_URLOPEN_TIMEOUT": cfg["server.auth.google_oauth2_timeout"],
 }
 
 if cfg["server.auth.debug_login"]:
     settings["SOCIAL_AUTH_AUTHENTICATION_BACKENDS"] = (
         "baselayer.app.psa.FakeGoogleOAuth2",
     )
+else:
+    backends = []
+    for provider in cfg["server.auth"].get("providers", []):
+        backend = provider.get("backend", None)
+        if backend is None:
+            raise ValueError("Each auth provider must specify a 'backend' field.")
+        backends.append(backend)
+        try:
+            components = backend.split(".")
+            module_path = ".".join(components[:-1])
+            class_name = components[-1]
+            BackendClass = getattr(__import__(module_path, fromlist=[""]), class_name)
+            name = BackendClass.name
+        except Exception as e:
+            raise ImportError(
+                f"Could not import auth provider backend {backend}. "
+                "Please check your configuration."
+            ) from e
+        key_setting_name = f"SOCIAL_AUTH_{name.upper().replace('-', '_')}_KEY"
+        secret_setting_name = f"SOCIAL_AUTH_{name.upper().replace('-', '_')}_SECRET"
+        settings[key_setting_name] = provider.get("client_id", "")
+        settings[secret_setting_name] = provider.get("secret", "")
+
+    settings["SOCIAL_AUTH_URLOPEN_TIMEOUT"] = cfg["server.auth"].get("timeout", 15)
+    settings["SOCIAL_AUTH_AUTHENTICATION_BACKENDS"] = tuple(backends)
+
+# if cfg["server.auth.debug_login"]:
+#     settings["SOCIAL_AUTH_AUTHENTICATION_BACKENDS"] = (
+#         "baselayer.app.psa.FakeGoogleOAuth2",
+#     )
 
 SOCIAL_AUTH_ROUTES = [
     tornado.web.url(r"/login/(?P<backend>[^/]+)/?", AuthHandler, name="begin"),
